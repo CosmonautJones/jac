@@ -33,7 +33,7 @@ obj Message {
         content: str | list[Media];
 
     def to_dict -> dict[str, object];
-    static def from_dict(d: dict) -> Message | LiteLLMMessage | dict;
+    static def from_dict(d: dict) -> Message | dict;
 }
 
 obj ToolCallResultMsg(Message) {

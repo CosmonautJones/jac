@@ -434,7 +434,7 @@ def _default_compact(
                     for p in content
                 );
             }
-            if str(role) == "assistant" and not content {
+            if str(role) == "assistant" {
                 tool_calls = msg.get("tool_calls") or [];
                 if tool_calls {
                     descs: list = [];
@@ -454,7 +454,8 @@ def _default_compact(
                         or "";
                         descs.append(f"{name}({args})");
                     }
-                    content = "called: " + "; ".join(descs);
+                    called = "called: " + "; ".join(descs);
+                    content = f"{content}\n{called}" if content else called;
                 }
             }
             lines.append(f"[{role}] {content}");
