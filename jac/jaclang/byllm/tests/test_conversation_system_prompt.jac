@@ -65,9 +65,10 @@ test "a compaction does not store the system prompt, so the next turn sends one"
             model_name="mockllm",
             ctx_window=1000,
             config={
-                "outputs": [call(100), call(850)]
-                    + summary
-                    + [finish("first"), finish("second")]
+                "outputs": [call(100), call(850)] + summary + [
+                    finish("first"),
+                    finish("second")
+                ]
             }
         );
 

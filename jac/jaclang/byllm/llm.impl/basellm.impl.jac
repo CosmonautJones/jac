@@ -423,11 +423,11 @@ def _compaction_line(msg: any) -> str {
                     if isinstance(tc, dict)
                     else (tc?.function or {});
                 name = (fn.get("name", "?") if isinstance(fn, dict) else fn?.name)
-                    or "?";
+                or "?";
                 args = (
                     fn.get("arguments", "") if isinstance(fn, dict) else fn?.arguments
                 )
-                    or "";
+                or "";
                 descs.append(f"{name}({args})");
             }
             called = "called: " + "; ".join(descs);
@@ -454,8 +454,8 @@ def _tail_start(messages: list[any], keep_recent: int, budget: int) -> int {
     }
     kept = min(keep_recent, len(rounds));
     while kept > 1
-        and budget > 0
-        and _estimate_tokens(messages[rounds[-kept]:]) > budget {
+    and budget > 0
+    and _estimate_tokens(messages[rounds[-kept]:]) > budget {
         kept -= 1;
     }
     return rounds[-kept] if kept > 0 else len(messages);

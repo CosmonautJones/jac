@@ -40,7 +40,10 @@ obj RecordingLLM(MockLLM) {
 
 
 def call(size: int, prompt_tokens: int = 0) -> tuple {
-    return (MockToolCall(tool=chunk, args={"size": size}), {"prompt_tokens": prompt_tokens});
+    return (
+        MockToolCall(tool=chunk, args={"size": size}),
+        {"prompt_tokens": prompt_tokens}
+    );
 }
 
 
@@ -67,15 +70,10 @@ def make_round(idx: int, result_chars: any) -> list[any] {
                 for i in ids
             ]
         }
-    ]
-        + [
-            {
-                "role": "tool",
-                "content": "r" * chars,
-                "tool_call_id": i,
-                "name": "search"
-            } for (i, chars) in zip(ids, sizes)
-        ];
+    ] + [
+        {"role": "tool", "content": "r" * chars, "tool_call_id": i, "name": "search"}
+        for (i, chars) in zip(ids, sizes)
+    ];
 }
 
 
@@ -98,7 +96,9 @@ def compact(
 ) -> list[any] {
     return list(
         _byllm_llm_mod._default_compact(
-            messages, keep_recent, summariser or MockLLM(model_name="mockllm", config={"outputs": ["S"]}),
+            messages,
+            keep_recent,
+            summariser or MockLLM(model_name="mockllm", config={"outputs": ["S"]}),
             ctx_window=4000
         )
     );
@@ -119,7 +119,9 @@ def field(messages: list[any], role: str, key: str) -> list[any] {
 def one_turn(
     outputs: list[any], tools: list[any], on_compaction: any = None
 ) -> tuple[RecordingLLM, str] {
-    llm = RecordingLLM(model_name="mockllm", ctx_window=1000, config={"outputs": outputs});
+    llm = RecordingLLM(
+        model_name="mockllm", ctx_window=1000, config={"outputs": outputs}
+    );
 
     def ask(q: str) -> str by llm(tools=tools, on_compaction=on_compaction);
 
@@ -136,13 +138,7 @@ def one_turn(
 
 test "the default settings compact when the threshold is crossed after two rounds" {
     (llm, _) = one_turn(
-        [
-            call(1200, 100),
-            call(1200, 900),
-            "SUMMARY_TEXT",
-            finish("ok")
-        ],
-        [chunk]
+        [call(1200, 100), call(1200, 900), "SUMMARY_TEXT", finish("ok")], [chunk]
     );
     # The third request is the summariser's: it saw only the first round.
     assert [len(m) for m in llm.sent] == [2, 4, 2, 5];
@@ -152,7 +148,10 @@ test "the default settings compact when the threshold is crossed after two round
 
 
 test "a reply held as a LiteLLM message is sized and summarised like its dict" {
-    for reply in [make_round(1, 8)[0], dict(make_round(1, 8)[0], content="LET_ME_CHECK")] {
+    for reply in [
+        make_round(1, 8)[0],
+        dict(make_round(1, 8)[0], content="LET_ME_CHECK")
+    ] {
         held = LiteLLMMessage(**reply);
         line = _byllm_llm_mod._compaction_line(held);
         assert line == _byllm_llm_mod._compaction_line(reply) , line;
@@ -240,14 +239,7 @@ test "a context overflow caused by one huge tool result is recovered by truncati
 
 
 test "a threshold crossing with nothing worth summarising neither fails nor summarises" {
-    (llm, logs) = one_turn(
-        [
-            call(8, 100),
-            call(8, 900),
-            finish("ok")
-        ],
-        [chunk]
-    );
+    (llm, logs) = one_turn([call(8, 100), call(8, 900), finish("ok")], [chunk]);
     assert [len(m) for m in llm.sent] == [2, 4, 6];
     assert "Compacting message history" in logs;
     assert "could not reduce the message history" in logs;
@@ -275,17 +267,12 @@ test "a hook that shrinks a tool result without removing a message counts as a r
         return [
             dict(m, content="[stubbed]")
                 if isinstance(m, dict) and m["role"] == "tool"
-                else m
-            for m in msgs
+                else m for m in msgs
         ];
     }
 
     (llm, logs) = one_turn(
-        [
-            call(1200, 100),
-            call(1200, 900),
-            finish("ok")
-        ],
+        [call(1200, 100), call(1200, 900), finish("ok")],
         [chunk],
         on_compaction=stub_results
     );
