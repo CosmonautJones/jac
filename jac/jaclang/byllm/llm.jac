@@ -48,7 +48,11 @@ import from jaclang.byllm.parallel {
     _PARALLEL_TOOL_HINT
 }
 import from jaclang.byllm.schema { inject_schema_hint }
-import from jaclang.byllm.tool_protocol { inject_tool_hint, recover_tool_calls }
+import from jaclang.byllm.tool_protocol {
+    coerce_message_dict,
+    inject_tool_hint,
+    recover_tool_calls
+}
 
 glob _byllm_config = get_byllm_config(),
      _litellm_config = _byllm_config.get_litellm_config(),
@@ -170,9 +174,7 @@ obj BaseLLM {
         mt_run: MTRuntime, just_compacted: bool, cp: dict
     ) -> CompletionResult;
 
-    def _compact_messages(
-        mt_run: MTRuntime, keep_recent: int, comp_model: str | None
-    ) -> None;
+    def _compact_messages(mt_run: MTRuntime, cp: dict[str, any]) -> bool;
 }
 
 obj MockLLM(BaseLLM) {

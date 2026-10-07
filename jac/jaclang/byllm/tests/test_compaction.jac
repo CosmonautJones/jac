@@ -6,13 +6,14 @@ import types;
 import litellm;
 
 import jaclang.byllm.llm as _byllm_llm_mod;
-import from jaclang.byllm.lib { Model, ModelPool, MockLLM }
+import from jaclang.byllm.lib { Model, ModelPool, MockLLM, MockError }
 import from jaclang.byllm.llm { BaseLLM, LocalLLM }
 import from jaclang.byllm.types { MockToolCall, CompletionResult }
 import from jaclang.byllm.exceptions { CompactionNotEffectiveError, ConfigurationError }
 import from jaclang.byllm.config_loader { reset_byllm_config, get_byllm_config }
 import from jaclang.byllm.mtir { MTRuntime }
 import from pathlib { Path }
+import from jaclang.byllm._optdeps.loguru { logger }
 
 
 glob FIXTURE_DIR = os.path.join(
@@ -355,7 +356,7 @@ test "ContextWindowExceededError triggers emergency compaction and retries" {
 }
 
 
-test "compaction with no reduction raises CompactionNotEffectiveError" {
+test "a proactive compaction that does not reduce the history lets the call continue" {
     def step_a -> str {
         return "a";
     }
@@ -369,7 +370,49 @@ test "compaction with no reduction raises CompactionNotEffectiveError" {
         config={
             "outputs": [
                 (MockToolCall(tool=step_a, args={}), {"prompt_tokens": 100}),
-                (MockToolCall(tool=step_a, args={}), {"prompt_tokens": 900})
+                (MockToolCall(tool=step_a, args={}), {"prompt_tokens": 900}),
+                (MockToolCall(tool=finish_tool, args={"final_output": "ok"}), {})
+            ]
+        }
+    );
+
+    hook_calls = [0];
+    def noop_hook(msgs: list, keep_recent: int) -> list {
+        hook_calls[0] += 1;
+        return msgs;
+    }
+
+    def my_task(q: str) -> str by llm(
+        tools=[step_a], threshold_ratio=0.80, on_compaction=noop_hook
+    );
+
+    log_lines: list = [];
+    sink_id = logger.add(log_lines.append, level="DEBUG");
+    try {
+        assert my_task("test") == "ok";
+    } finally {
+        logger.remove(sink_id);
+    }
+    assert hook_calls[0] == 1;
+    assert "could not reduce the message history" in "".join(log_lines);
+}
+
+
+test "an emergency compaction that does not reduce the history raises CompactionNotEffectiveError" {
+    def step_a -> str {
+        return "a";
+    }
+
+    llm = MockLLM(
+        model_name="mockllm",
+        config={
+            "outputs": [
+                (MockToolCall(tool=step_a, args={}), {}),
+                MockError(
+                    error=litellm.exceptions.ContextWindowExceededError(
+                        message="ctx exceeded", model="mockllm", llm_provider="openai"
+                    )
+                )
             ]
         }
     );
@@ -378,18 +421,26 @@ test "compaction with no reduction raises CompactionNotEffectiveError" {
         return msgs;
     }
 
-    def my_task(q: str) -> str by llm(
-        tools=[step_a], threshold_ratio=0.80, on_compaction=noop_hook
-    );
+    dispatches = [0];
+    original_dispatch = llm.dispatch_no_streaming;
+    def counting_dispatch(mt_run: MTRuntime) -> CompletionResult {
+        dispatches[0] += 1;
+        return original_dispatch(mt_run);
+    }
+
+    def my_task(q: str) -> str by llm(tools=[step_a], on_compaction=noop_hook);
 
     raised = False;
-    try {
-        my_task("test");
-    } except CompactionNotEffectiveError as e {
-        raised = True;
-        assert "no reduction" in str(e);
+    with mock.patch.object(llm, "dispatch_no_streaming", counting_dispatch) {
+        try {
+            my_task("test");
+        } except CompactionNotEffectiveError as e {
+            raised = True;
+            assert "no reduction" in str(e);
+        }
     }
     assert raised;
+    assert dispatches[0] == 2 , "a compaction that did nothing must not retry the call";
 }
 
 
