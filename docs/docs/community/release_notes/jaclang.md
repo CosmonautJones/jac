@@ -2,7 +2,15 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.20 (Latest Release)
+## jaclang 0.34.21 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: byLLM compaction no longer fails a call with the default `keep_recent_iterations`**: the kept tail is sized by tokens instead of counting assistant rounds, so an early threshold crossing still has something to summarise. `CompactionNotEffectiveError` is now raised only when the provider rejects the request and compaction cannot reduce the history.
+- byLLM compaction reads a tool call loaded from `conversation=` like any other message: the summariser is handed the `called: name(args)` line instead of the Python repr of a LiteLLM `Message`, so the history is no longer sized from that repr. A LiteLLM message passed in `conversation=` is read as a dict, and an assistant message with both text and tool calls keeps its tool calls in the summariser input.
+- **byLLM: a compaction no longer stores the system prompt in `conversation=`**: a `system` message is never written to or replayed from the list, so lists that already hold one are healed on their next call.
+
+## jaclang 0.34.20
 
 ### Bug Fixes
 
